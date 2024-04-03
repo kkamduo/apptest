@@ -28,6 +28,9 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
 
+import android.net.Uri
+import java.io.File
+
 class SubActivity : AppCompatActivity() {
 
     private lateinit var deviceAddress: String
@@ -46,6 +49,10 @@ class SubActivity : AppCompatActivity() {
     private val SERVICE_UUID: UUID = UUID.fromString("94f39d29-7d6d-437d-973b-fba39e49d4ee") // SPP UUID
 
     val binding by lazy { ActivitySubBinding.inflate(layoutInflater) }
+
+    private val REQUEST_IMAGE_CAPTURE = 1
+    private val REQUEST_IMAGE_CROP = 2
+    private var imageUri: Uri? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -183,48 +190,57 @@ class SubActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (resultCode == RESULT_OK) {
-            when (requestCode) {;'/'
+            when (requestCode) {
                 REQUEST_IMAGE_CAPTURE -> {
                     val imageBitmap = data?.extras?.get("data") as? Bitmap
-                    if (imageBitmap != null) {
-                        sendImage(imageBitmap)
-                        imageView.setImageBitmap(imageBitmap)
-                        imageView.visibility = View.VISIBLE
-                    } else {
-                        // 이미지가 "data" 키에 포함되지 않은 경우
-                        val imageUri = data?.data
-                        if (imageUri != null) {
-                            try {
-                                val inputStream = contentResolver.openInputStream(imageUri)
-                                val selectedImage = BitmapFactory.decodeStream(inputStream)
-                                inputStream?.close()
-                                sendImage(selectedImage)
-                                imageView.setImageBitmap(selectedImage)
-                                imageView.visibility = View.VISIBLE
-                            } catch (e: IOException) {
-                                Log.e(TAG, "Error loading image from URI: $imageUri", e)
-                            }
-                        } else {
-                            Log.e(TAG, "Captured image bitmap is null.")
+                    imageBitmap?.let {
+                        startImageCrop(it)
+                    } ?: run {
+                        data?.data?.let { uri ->
+                            startImageCrop(uri)
                         }
                     }
                 }
-                PICK_IMAGE_REQUEST -> {
-                    data?.data?.let { uri ->
-                        try {
-                            val imageBitmap = MediaStore.Images.Media.getBitmap(contentResolver, uri)
-                            sendImage(imageBitmap)
-                            imageView.setImageBitmap(imageBitmap)
-                            imageView.visibility = View.VISIBLE
-                        } catch (e: IOException) {
-                            Log.e(TAG, "Error getting image from gallery.", e)
-                        }
-                    } ?: run {
-                        Log.e(TAG, "Selected image URI is null.")
+                REQUEST_IMAGE_CROP -> {
+                    val imageBitmap = data?.extras?.get("data") as? Bitmap
+                    imageBitmap?.let {
+                        imageView.setImageBitmap(it)
+                        sendImage(it)
                     }
                 }
             }
         }
+    }
+
+    private fun startImageCrop(bitmap: Bitmap) {
+        val cropIntent = Intent("com.android.camera.action.CROP")
+        cropIntent.setDataAndType(getImageUri(bitmap), "image/*")
+        cropIntent.putExtra("crop", "true")
+        cropIntent.putExtra("aspectX", 1)
+        cropIntent.putExtra("aspectY", 1)
+        cropIntent.putExtra("outputX", 256)
+        cropIntent.putExtra("outputY", 256)
+        cropIntent.putExtra("return-data", true)
+        startActivityForResult(cropIntent, REQUEST_IMAGE_CROP)
+    }
+
+    private fun startImageCrop(uri: Uri) {
+        val cropIntent = Intent("com.android.camera.action.CROP")
+        cropIntent.setDataAndType(uri, "image/*")
+        cropIntent.putExtra("crop", "true")
+        cropIntent.putExtra("aspectX", 1)
+        cropIntent.putExtra("aspectY", 1)
+        cropIntent.putExtra("outputX", 256)
+        cropIntent.putExtra("outputY", 256)
+        cropIntent.putExtra("return-data", true)
+        startActivityForResult(cropIntent, REQUEST_IMAGE_CROP)
+    }
+
+    private fun getImageUri(inImage: Bitmap): Uri {
+        val bytes = ByteArrayOutputStream()
+        inImage.compress(Bitmap.CompressFormat.JPEG, 100, bytes)
+        val path = MediaStore.Images.Media.insertImage(contentResolver, inImage, "Title", null)
+        return Uri.parse(path)
     }
 
     private fun sendImage(bitmap: Bitmap){
@@ -246,46 +262,6 @@ class SubActivity : AppCompatActivity() {
             Log.e(TAG, "Error sending image.", e)
         }
     }
-
-    /*private fun sendImage(bitmap: Bitmap) {
-        try {
-            val byteArrayOutputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
-            val byteArray = byteArrayOutputStream.toByteArray()
-
-            val blockSize = 1024 // 작은 블록 크기
-            val totalBlocks = byteArray.size / blockSize
-            val lastBlockSize = byteArray.size % blockSize
-
-            // 이미지 데이터 전송 시작 신호 전송
-            outputStream.write("IMG_START".toByteArray())
-
-            // 작은 블록 단위로 이미지 데이터 전송
-            for (i in 0 until totalBlocks) {
-                val blockStart = i * blockSize
-                val blockEnd = blockStart + blockSize
-                val blockData = byteArray.copyOfRange(blockStart, blockEnd)
-                sendBlock(blockData)
-            }
-
-            // 나머지 블록 전송
-            if (lastBlockSize > 0) {
-                val lastBlockData = byteArray.copyOfRange(byteArray.size - lastBlockSize, byteArray.size)
-                sendBlock(lastBlockData)
-            }
-
-            // 이미지 데이터 전송 종료 신호 전송
-            outputStream.write("END".toByteArray())
-
-            Log.d(TAG, "Image sent successfully.")
-
-            imageView.setImageBitmap(bitmap)
-            imageView.visibility = View.VISIBLE
-
-        } catch (e: IOException) {
-            Log.e(TAG, "Error sending image.", e)
-        }
-    }*/
 
     private fun sendBlock(blockData: ByteArray) {
         Thread {
