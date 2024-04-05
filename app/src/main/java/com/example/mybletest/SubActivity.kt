@@ -218,8 +218,8 @@ class SubActivity : AppCompatActivity() {
         cropIntent.putExtra("crop", "true")
         cropIntent.putExtra("aspectX", 1)
         cropIntent.putExtra("aspectY", 1)
-        cropIntent.putExtra("outputX", 256)
-        cropIntent.putExtra("outputY", 256)
+        cropIntent.putExtra("outputX", 1024)
+        cropIntent.putExtra("outputY", 1024)
         cropIntent.putExtra("return-data", true)
         startActivityForResult(cropIntent, REQUEST_IMAGE_CROP)
     }
@@ -230,8 +230,8 @@ class SubActivity : AppCompatActivity() {
         cropIntent.putExtra("crop", "true")
         cropIntent.putExtra("aspectX", 1)
         cropIntent.putExtra("aspectY", 1)
-        cropIntent.putExtra("outputX", 256)
-        cropIntent.putExtra("outputY", 256)
+        cropIntent.putExtra("outputX", 1024)
+        cropIntent.putExtra("outputY", 1024)
         cropIntent.putExtra("return-data", true)
         startActivityForResult(cropIntent, REQUEST_IMAGE_CROP)
     }
